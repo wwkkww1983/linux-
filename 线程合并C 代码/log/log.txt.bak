@@ -1,0 +1,173 @@
+2018 6.6:
+	verson1 :decoler.c  tm_circle_buffer.c
+	         构建数据解析包通用结构构建的数据解包器 解报的默认格式为2字节的长度值
+	         Prifix+len+data+crc
+2018 6.12 
+	verson2 :tm_Sserial_card.c tm_serial_base.c  tm_serial_manager.c  tm_serial_gps.c tm_serila_qr.c 
+	         构建串口读取统一模型，进行数据读取，内容改进：一个线程执行模型，监控多路串口，减少线程创建
+	         另串口的读处理在一个线程中，写函数分布在多个业务逻辑中，这样的多处读写，在另外的一个线程中
+	         关闭，再写并不会造成段错误导致进程退出，捉取错误值系统errno打印信息 “Bad file descriptor”
+	         并返回-1，即在本版本程序中将之前的方式优化，发送在另外的业务逻辑中调用
+	        
+  verson3 :tm_can_base.c  tm_can_car.c  tm_can_box.c
+           构建统一的CAN设备读取流程。内容改进: 一个线程监控多路CAN设备，另外剔除原来的多个can filter  机制
+           can filter 可能在一路线程中无法使用，均使用单路的can filter绑定单个socket来进行多个句柄的监控，另
+           SIGPIPE信号的捕捉，分析原来可能造成的段错误原因 .今日调试BUG中在SELECT读取容易出现空指针引用，
+           修改函数空闲逻辑和读取操作流程，主义单次的查询时间并没有超过固定设置时间
+
+2018  6.19
+	verson4 :tm_serial_ymode.c 
+	         构建通用ymodem  
+	         传输协议，调整原来YMODEM中协议业务判断的耦合，提供回调函数，进行发送时其他业务的耦合
+	         Ymodem 升级协议调试通顺，能够正常进行升级
+
+
+	verson5 :
+	        构建系统通用层程序
+	        SYS_TIMER 定时器系统程序
+	        SYS_LIST  链表通用使用
+	        
+	        SYS_TASK   线程池实现稍后在去探讨使用的优缺点(搁置)
+
+  
+2018  7.4       
+          VERSON6  :SOCKET客户端处理
+   
+          ADD_SOCKET
+          DEL_SOCKET
+          网络管理模块已经做完，待测试项目： 
+          
+         （1） SIGPIPE 信号的产生是在服务端已经关闭了连接后，客户端任然不知道关闭信号导致SIGPIPE 的产生
+         （2） 写一个关闭的文件句柄的时候，这个时候返回的值为-1,错误信息打印为“write a  bad  file ”
+          <3>  处理方法是在程序开启的时候就开始对SIGPIPE信号进行忽略操作
+          <4>  select  未读的socketk 接口一直返回的都是可读状态
+          <5>  对端关闭连接的时候，select 总是可用的。read的数据长度值为0  ，但是下次select  时还是可读的
+                此时应该关闭客户端来连接
+          <6>  select 一个阻塞模式的客户端会产生一个阻塞，所以在一个while中 首先在select 之前一定要确定客户端的连接建立
+                若没有建立连接就尝试反复建立连接
+          <7> 反复关闭一个句柄会产生错误
+          <8> 写一个关闭的句柄
+          <9> 写一个未建立连接的句柄时返回值-1；
+          
+          处理方式：连接和接收在一个线程中进行，发送函数在定时器线程中，主意此时定时器的轮询时间
+              
+          *************************************************************************************   
+           while（1）                                                       send模式
+           {                                                              
+                                                                           判断连接标志
+                 FD_ALL_CONNECT                                            write 数据 
+                 FD_ALL_ADD                                                write 有错 直接关闭socket 设置连接标志
+                 FD_ALL_SELECT
+              
+                 READ
+                 {
+                    1.判断网络关闭
+                    {
+                        关闭句柄
+                        设置连接标志
+                    }
+                    2.读取网络数据
+                    {
+                    
+                        进入各个的业务处理函数
+                    }
+                    
+
+          }
+          
+         4>将数据的发送放入定时器中，减少线程创建的个数最终的线程个数建华扫到 7 个         
+          UI         1
+          网络       1
+          CAN        1
+          串口       1
+          网络       1
+          语音       1
+          定时器     1
+          IDLE task  3        
+         ******************************************************************************************    
+          VERSON7  :串口管理调整，在原来的链表基础上修改逻辑，使所有的外设设备管理统一,超时队列的构建
+                
+                   
+               /*获得一个发送超时队列*/ 
+               TimoutQue *  GetTimeOutQue(Fun * sendfun, Time , Num )
+               {
+                   alloc(sizeof(TimeoutQue));
+                   TimeoutQue.time  =  time;
+                   TimeoutQue.Num   =  num;
+                   TimeoutQue.Fun   =  sendfun;
+                   SYS_LIST_Init(Timeout.list);
+                   SYS_TIME_Funinser();
+                   pthread_mutex_init(Timeout.mutex);
+                   return     TimeoutQue;
+               }
+               
+              /*设备数据发送*/
+              Pdev->Send_data()
+              {
+                  if(!retry)
+                     Pdev->Send(Pdev,buffer ,len ,)
+              
+                    (retry)
+                    {
+                       AlloctimoutNode();
+                       TmoutQueInser();               
+                    }
+              }
+              
+              
+               
+               /*分配一个数据发送节点*/
+               TimeoutNode    AllocTimeoutNode()
+               {
+               
+               
+               
+               }
+               
+               /*插入一个数据超时节点*/     
+               int   TimeoutQue_Inset(timeout  node, TimeoutQue  Head)
+               {
+                    pthread_lock();
+                    
+                		List_insert(node.list,Head);  
+                    
+                    pthread_unlock();
+                    
+                    /*调整数据节点发送时间*/
+                    head.Send(buf,len);
+                    
+                    return   0;
+               }        
+                    
+               
+               /*超时轮询函数*/ 
+               Timeout_Deal_Fun()
+               {
+                    List_ForEach()
+                    {
+                        if(Node.timeout)
+                        {
+                        	 Pool.Sendata();
+                        	 Node.num --;
+                        	 Node.time.updata();
+                         
+                        }
+                        
+                        
+                        if(NODE_null)
+                        {
+                           continue;
+                        }
+                    
+                    }
+               }   
+               
+               
+            
+              
+          
+          
+ 
+             
+        
+           

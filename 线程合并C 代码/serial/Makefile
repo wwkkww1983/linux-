@@ -1,0 +1,7 @@
+obj-y += tm_serial_base.o
+obj-y += tm_serial_card.o
+obj-y += tm_serial_gps.o
+obj-y += tm_serial_manager.o
+obj-y += tm_serial_qr.o
+obj-y += tm_serial_ymod.o
+obj-y += tm_debug.o
